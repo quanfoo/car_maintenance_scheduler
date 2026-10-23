@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import { ids } from '../src/db/seed.js';
+const base = process.env.API_URL ?? 'http://127.0.0.1:3000';
+async function request(path: string, options?: RequestInit) {
+  const response = await fetch(new URL(path, base), options);
+  const body: unknown = await response.json();
+  return { response, body };
+}
+const catalog = await request('/dealerships');
+assert.equal(catalog.response.status, 200);
+assert.ok(Array.isArray(catalog.body) && catalog.body.length >= 2, 'Run db:seed first');
+const availability = await request(`/availability?dealershipId=${ids.north}&serviceTypeId=${ids.oil}&date=2030-01-15`);
+assert.equal(availability.response.status, 200);
+const slots = (availability.body as { slots: { startTime: string; available: boolean }[] }).slots;
+assert.equal(slots.length, 48);
+assert.equal(slots.find(s => s.startTime === '2030-01-15T09:00:00.000Z')?.available, false);
+const payload = { customerId: ids.bob, vehicleId: ids.bobCar, dealershipId: ids.north, serviceTypeId: ids.oil, startTime: '2030-01-16T09:30:00Z' };
+const options = { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': 'reviewer-demo-v1' }, body: JSON.stringify(payload) };
+const created = await request('/appointments', options);
+assert.ok([200,201].includes(created.response.status), JSON.stringify(created.body));
+const id = (created.body as { id: string }).id;
+assert.ok(id);
+const replay = await request('/appointments', options);
+assert.equal(replay.response.status, 200);
+assert.equal(replay.response.headers.get('idempotency-replayed'), 'true');
+assert.deepEqual(replay.body, created.body);
+const changed = await request('/appointments', { ...options, body: JSON.stringify({ ...payload, startTime: '2030-01-16T10:30:00Z' }) });
+assert.equal(changed.response.status, 409);
+assert.equal((changed.body as { error: { code: string } }).error.code, 'IDEMPOTENCY_KEY_REUSED');
+const retrieved = await request(`/appointments/${id}`);
+assert.equal(retrieved.response.status, 200);
+assert.deepEqual(retrieved.body, created.body);
+const list = await request(`/appointments?customerId=${ids.bob}&date=2030-01-16`);
+assert.equal(list.response.status, 200);
+assert.ok((list.body as { items: { id: string }[] }).items.some(item => item.id === id));
+console.log('PASS: catalog, seeded availability, booking, idempotent replay, changed-payload conflict, retrieval, filtered listing');
+console.log(`Demo appointment: ${id}. Re-running reuses the same idempotency key.`);
