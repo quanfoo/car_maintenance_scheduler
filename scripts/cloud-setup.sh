@@ -2,6 +2,7 @@
 # Managed cloud refresh. Uses the existing isolated checkout and never resets Git/data.
 set -eu
 cd "$(dirname "$0")/.."
+export XDG_CACHE_HOME="${CLOUD_CACHE_DIR:-/workspace/.cache}"
 export npm_config_cache="${CLOUD_CACHE_DIR:-/workspace/.cache}/npm"
 export npm_config_update_notifier=false
 export BUILDX_CONFIG="${CLOUD_CACHE_DIR:-/workspace/.cache}/buildx"
