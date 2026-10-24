@@ -1,3 +1,4 @@
+import { swaggerDemo } from '../../common/swagger-demo.js';
 import { ApiJsonResponse, ApiErrors } from '../../common/openapi.js';
 import { Controller, Get, Inject, Param } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
@@ -12,7 +13,7 @@ export class ServiceTypesController {
   constructor(@Inject(ServiceTypesService) private service: ServiceTypesService) {}
   @Get()
   @ApiOperation({ summary: 'Services offered at a dealership' })
-  @ApiParam({ name: 'dealershipId', schema: UUID })
+  @ApiParam({ name: 'dealershipId', schema: { ...UUID, default: swaggerDemo.dealershipId }, description: 'Seeded North Motors dealership' })
   @ApiJsonResponse({ status: 200, schema: Type.Array(Type.Object({ id: UUID, name: Type.String(), durationMinutes: Type.Integer() })) })
   @ApiJsonResponse({ status: 404, schema: errors[404] })
   list(@Param('dealershipId', new SchemaPipe(UUID)) id: string) { return this.service.list(id); }

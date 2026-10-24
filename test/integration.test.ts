@@ -196,6 +196,52 @@ describe('booking and retrieval', () => {
     expect((await app.inject('/appointments?status=cancelled')).statusCode).toBe(400);
     expect((await app.inject(`/appointments/${missing}`)).statusCode).toBe(404);
   });
+  it('executes every Swagger operation using only its prefilled seed examples', async () => {
+    type Parameter = { name: string; in: string; schema?: { default?: string | number }; example?: string | number };
+    type Operation = { parameters?: Parameter[]; requestBody?: { content: Record<string, { schema: { example?: Record<string, unknown> } }> } };
+    const spec = (await app.inject('/openapi.json')).json<{ paths: Record<string, Record<string, Operation>> }>();
+    const documented = (path: string, method: 'get' | 'post' | 'delete') => {
+      const operation = spec.paths[path]?.[method];
+      expect(operation, `${method} ${path} is documented`).toBeDefined();
+      let url = path;
+      const query = new URLSearchParams();
+      const headers: Record<string, string> = {};
+      for (const parameter of operation!.parameters ?? []) {
+        const value = parameter.schema?.default ?? parameter.example;
+        expect(value, `${method} ${path}: ${parameter.name} is prefilled`).toBeDefined();
+        if (parameter.in === 'path') url = url.replace(`{${parameter.name}}`, encodeURIComponent(String(value)));
+        else if (parameter.in === 'query') query.set(parameter.name, String(value));
+        else if (parameter.in === 'header') headers[parameter.name] = String(value);
+      }
+      expect(url).not.toMatch(/[{}]/);
+      if (query.size) url += `?${query}`;
+      const payload = operation!.requestBody?.content['application/json']?.schema.example;
+      if (method === 'post') expect(payload, `${method} ${path} has a usable body`).toBeDefined();
+      return { method: method.toUpperCase() as 'GET' | 'POST' | 'DELETE', url, headers, payload };
+    };
+    for (const [path, operations] of Object.entries(spec.paths)) {
+      if (!operations.get) continue;
+      const response = await app.inject(documented(path, 'get'));
+      expect(response.statusCode, `${path}: ${response.body}`).toBe(200);
+      if (path === '/appointments') expect(response.json().items.length).toBeGreaterThan(0);
+      if (path === '/availability') expect(response.json().slots).toHaveLength(48);
+    }
+    const bookingRequest = documented('/appointments', 'post');
+    const booking = await app.inject(bookingRequest);
+    expect(booking.statusCode, booking.body).toBe(201);
+    const replay = await app.inject(bookingRequest);
+    expect(replay.statusCode, replay.body).toBe(200);
+    expect(replay.json()).toEqual(booking.json());
+    const timeOff = await app.inject(documented('/technicians/{id}/time-off', 'post'));
+    expect(timeOff.statusCode, timeOff.body).toBe(201);
+    const deleted = await app.inject(documented('/technicians/{id}/time-off/{timeOffId}', 'delete'));
+    expect(deleted.statusCode, deleted.body).toBe(204);
+    // Documentation defaults must not silently supply missing business inputs.
+    expect((await app.inject('/availability')).statusCode).toBe(400);
+    const ui = await app.inject('/docs/swagger-ui-init.js');
+    expect(ui.statusCode).toBe(200);
+    expect(ui.body).toMatch(/"tryItOutEnabled":\s*true/);
+  });
   it('serves OpenAPI, Swagger, readiness, consistent errors, request IDs and metrics', async () => {
     const spec = (await app.inject('/openapi.json')).json();
     expect(spec.paths['/appointments'].post.requestBody).toBeDefined();

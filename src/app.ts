@@ -27,7 +27,7 @@ export async function buildApp(prisma: PrismaService, options: { logger?: boolea
   });
   app.useGlobalFilters(new ApiFilter(metrics));
   const document = SwaggerModule.createDocument(app, new DocumentBuilder().setTitle('Unified Service Scheduler').setVersion('1.0.0').setDescription('Unauthenticated assessment demo. Dates are UTC. Availability is advisory; booking is authoritative.').build());
-  SwaggerModule.setup('docs', app, document, { jsonDocumentUrl: 'openapi.json' });
+  SwaggerModule.setup('docs', app, document, { jsonDocumentUrl: 'openapi.json', swaggerOptions: { tryItOutEnabled: true } });
   await app.init();
   await fastify.ready();
   return app;

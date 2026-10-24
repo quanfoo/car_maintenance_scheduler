@@ -1,6 +1,7 @@
-import { ApiJsonResponse, ApiErrors } from '../../common/openapi.js';
+import { swaggerDemo } from '../../common/swagger-demo.js';
+import { ApiJsonResponse, ApiErrors, ApiJsonBody } from '../../common/openapi.js';
 import { Body, Controller, Get, Headers, Inject, Param, Post, Query, Res } from '@nestjs/common';
-import { ApiBody, ApiHeader, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiHeader, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { FastifyReply } from 'fastify';
 import { Type } from '@sinclair/typebox';
 import { SchemaPipe } from '../../common/schema.pipe.js';
@@ -17,8 +18,8 @@ export class AppointmentsController {
   constructor(@Inject(BookingService) private booking: BookingService, @Inject(AppointmentsService) private service: AppointmentsService, @Inject(Metrics) private metrics: Metrics) {}
   @Post()
   @ApiOperation({ summary: 'Book a qualified technician and service bay atomically', description: 'Idempotency keys are global in this demo. Identical normalized retries return 200 with Idempotency-Replayed: true; changed payloads return 409. No key means an independent booking.' })
-  @ApiBody({ schema: Booking })
-  @ApiHeader({ name: 'Idempotency-Key', required: false, schema: Key })
+  @ApiJsonBody(Booking, swaggerDemo.booking)
+  @ApiHeader({ name: 'Idempotency-Key', required: false, schema: { ...Key, default: swaggerDemo.idempotencyKey }, description: 'Prefilled demo key: first request returns 201, identical retries return 200. Use a new key when changing the body.' })
   @ApiJsonResponse({ status: 201, schema: Appointment })
   @ApiJsonResponse({ status: 200, schema: Appointment })
   @ApiJsonResponse({ status: 400, schema: errors[400] })
@@ -35,16 +36,16 @@ export class AppointmentsController {
   }
   @Get(':id')
   @ApiOperation({ summary: 'Get a confirmed appointment and assigned resources' })
-  @ApiParam({ name: 'id', schema: UUID })
+  @ApiParam({ name: 'id', schema: { ...UUID, default: swaggerDemo.appointmentId }, description: 'Existing seeded appointment; replace with a POST response id to retrieve a new booking' })
   @ApiJsonResponse({ status: 200, schema: Appointment })
   @ApiJsonResponse({ status: 404, schema: errors[404] })
   get(@Param('id', new SchemaPipe(UUID)) id: string) { return this.service.get(id); }
   @Get()
   @ApiOperation({ summary: 'List appointments by UTC start date with bounded pagination', description: 'Unauthenticated assessment demo. Production requires object-level authorization.' })
-  @ApiQuery({ name: 'dealershipId', required: false, schema: UUID })
-  @ApiQuery({ name: 'customerId', required: false, schema: UUID })
-  @ApiQuery({ name: 'date', required: false, schema: { type: 'string', format: 'date' } })
-  @ApiQuery({ name: 'status', required: false, schema: { type: 'string', enum: ['confirmed'] } })
+  @ApiQuery({ name: 'dealershipId', required: false, schema: { ...UUID, default: swaggerDemo.dealershipId } })
+  @ApiQuery({ name: 'customerId', required: false, schema: { ...UUID, default: swaggerDemo.customerId } })
+  @ApiQuery({ name: 'date', required: false, schema: { type: 'string', format: 'date', default: swaggerDemo.date } })
+  @ApiQuery({ name: 'status', required: false, schema: { type: 'string', enum: ['confirmed'], default: 'confirmed' } })
   @ApiQuery({ name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } })
   @ApiQuery({ name: 'offset', required: false, schema: { type: 'integer', minimum: 0, maximum: 10000, default: 0 } })
   @ApiJsonResponse({ status: 200, schema: Type.Object({ items: Type.Array(Appointment), limit: Type.Integer(), offset: Type.Integer(), hasMore: Type.Boolean() }) })

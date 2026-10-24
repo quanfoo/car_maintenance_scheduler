@@ -71,7 +71,7 @@ npm run demo      # requires the seeded running API; uses real HTTP
 
 Prisma Client is generated automatically before dev/test/migration/seed npm commands and during build/type checking. Tests launch their own PostgreSQL 17 container through Testcontainers, migrate it and isolate each test with fresh seed data. They never use or truncate your `DATABASE_URL`. Docker must be available, including permission to start the Testcontainers cleanup container. There is no in-memory substitute and no silent integration-test skip. The suite also verifies populated legacy database adoption and shared appointment/time-off locking across two Nest app instances.
 
-The current suite contains **72 tests**: 11 domain tests and 61 PostgreSQL/API tests.
+The current suite contains **73 tests**: 11 domain tests and 62 PostgreSQL/API tests.
 
 Tests exercise ownership and reference validation, cross-dealership and qualification constraints, full interval overlap, adjacent appointments, midnight rollover, alternatives, exhaustion, accurate availability, persistence, filtering, idempotency and concurrency. Two independent Fastify apps with separate connection pools contend on one database. Explicit SQL transaction tests wait until PostgreSQL reports a lock wait before committing the competing write; they verify exclusion errors and recovery from aborted transactions. A test-only database trigger injects exclusion failures to prove the five-attempt limit and rollback behavior. Time-off races use database insert gates and observed PostgreSQL lock waits to force booking-first, time-off-first and competing-leave orderings. Fault injection verifies failed writes roll back and retries stop at five transactions. These are correctness tests, not load tests or evidence of production throughput.
 
@@ -94,6 +94,22 @@ All IDs are UUIDs. All responses use UTC ISO timestamps. The `date` parameter me
 | GET | `/metrics` | Prometheus latency, outcome, retry, database error counters |
 
 Lists sort by `startTime,id`; default limit is 20, maximum 100, maximum offset 10000. `hasMore` avoids an extra count. The date filter selects appointments **starting** that date. Only `confirmed` status exists; cancellation is outside scope. Availability exposes no appointment/customer identifiers and is advisory; only a committed booking confirms resources.
+
+### Click-ready Swagger demonstration
+
+After seeding, open `/docs`, expand an operation and click **Execute**. Try-it-out mode is enabled and query/path fields and POST bodies are prefilled from the same stable identifiers used by the seed. These are documentation/UI defaults; raw API requests still need their required inputs.
+
+| Operation | Prefilled scenario | Successful result |
+| --- | --- | --- |
+| Dealership service catalog | North Motors | 200 |
+| Availability | North, oil change, 2030-01-15 UTC | 200 with 48 mixed-capacity slots |
+| Get appointment | First seeded appointment (`70000000-0000-4000-8000-000000000001`) | 200 |
+| List appointments | North, Alice, 2030-01-15, confirmed | 200 with existing records |
+| Create appointment | Alice's vehicle, North oil change, 2030-01-16 10:00 UTC | 201 initially; 200 on identical replay |
+| List/create time off | Technician 2; new leave on 2030-01-18 13:00–14:00 UTC | GET 200; POST 201 |
+| Delete time off | Technician 2's seeded morning absence (`80000000-0000-4000-8000-000000000002`) | 204 |
+
+The booking's prefilled `Idempotency-Key` is `swagger-booking-demo-v1`. Keep it for identical retries; change it when editing the booking body. Repeating the time-off POST returns 409 until you delete that created record using its returned id. The DELETE example removes a seed record; repeating deletion returns 404. Re-run the seed to restore deleted seed records before repeating the original availability demo. Seeding preserves extra appointments/time off, so it does not erase records you created through Swagger.
 
 Example discovery and booking:
 

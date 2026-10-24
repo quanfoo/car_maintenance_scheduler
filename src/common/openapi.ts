@@ -17,7 +17,8 @@ function convert(value: unknown): unknown {
   }
   const result: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value)) {
-    if (key === 'const') result.enum = [child];
+    if (key === 'examples' && Array.isArray(child)) result.example = child[0];
+    else if (key === 'const') result.enum = [child];
     else if ((key === 'exclusiveMinimum' || key === 'exclusiveMaximum') && typeof child === 'number') {
       result[key === 'exclusiveMinimum' ? 'minimum' : 'maximum'] = child;
       result[key] = true;
@@ -33,4 +34,7 @@ export function ApiErrors() {
   return applyDecorators(...Object.entries(errors).map(([status, schema]) => ApiJsonResponse({ status: Number(status), schema })));
 }
 
-export function ApiJsonBody(schema: TSchema) { return ApiBody({ schema: convert(schema) as ResponseSchema }); }
+export function ApiJsonBody(schema: TSchema, example?: unknown) {
+  const converted = convert(schema) as ResponseSchema;
+  return ApiBody({ schema: example === undefined ? converted : { ...converted, example } });
+}
