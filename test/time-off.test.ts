@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { buildApp } from '../src/app.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { migrate } from '../src/db/migrate.js';
-import { seed, ids, tech } from '../src/db/seed.js';
+import { seed, ids, tech, seededAppointment } from '../src/db/seed.js';
 
 let container: StartedPostgreSqlContainer;
 let pool: pg.Pool;
@@ -165,6 +165,16 @@ describe('time-off availability and allocation', () => {
 });
 
 describe('time-off database integrity', () => {
+  it('refuses to restore a missing demo appointment across newly added time off', async () => {
+    await prisma.appointment.delete({ where: { id: seededAppointment(1) } });
+    const created = await leave({ startsAt: '2030-01-15T09:00:00Z', endsAt: '2030-01-15T09:30:00Z' }, 1);
+    expect(created.statusCode).toBe(201);
+    await expect(seed(prisma)).rejects.toMatchObject({ code: 'SEED_CONFLICT' });
+    expect(await prisma.appointment.findUnique({ where: { id: seededAppointment(1) } })).toBeNull();
+    expect(await prisma.appointment.count()).toBe(9);
+    expect(await prisma.technicianTimeOff.findUnique({ where: { id: created.json().id } })).not.toBeNull();
+    await expectNoCrossOverlap();
+  });
   it('enforces FK, valid interval and per-technician overlap even for direct writes', async () => {
     const insert = (technicianId: string, start: string, end: string) => pool.query('INSERT INTO technician_time_off(id,technician_id,starts_at,ends_at) VALUES ($1,$2,$3,$4)', [randomUUID(), technicianId, start, end]);
     await expect(insert(absent, interval.startsAt, interval.endsAt)).rejects.toMatchObject({ code: '23503' });

@@ -37,16 +37,21 @@ export async function seed(prisma: PrismaService) {
       [3,1,ids.major,'11:00'],[2,2,ids.tyres,'11:00'],[1,2,ids.oil,'13:00'],[3,1,ids.major,'14:00'],
       [4,3,ids.oil,'09:00'],[5,3,ids.tyres,'10:00'],
     ];
+    const schedule = new TechnicianSchedule();
     for (const [i,[t,b,serviceTypeId,time]] of appointments.entries()) {
       const durationMinutes = serviceTypeId===ids.oil?30:serviceTypeId===ids.tyres?60:90;
       const startTime = new Date(`2030-01-15T${time}:00Z`);
-      await tx.appointment.upsert({ where: { id: seededAppointment(i+1) }, create: {
+      const endTime = new Date(startTime.getTime()+durationMinutes*60000);
+      await schedule.lock(tx, tech(t));
+      if (await tx.appointment.findUnique({ where: { id: seededAppointment(i+1) } })) continue;
+      const conflict = await schedule.conflicts(tx, tech(t), startTime, endTime);
+      if (conflict.appointments || conflict.timeOff) throw new ApiError(409, 'SEED_CONFLICT', 'Demo appointment conflicts with an existing schedule');
+      await tx.appointment.create({ data: {
         id: seededAppointment(i+1), customerId: ids.alice, vehicleId: ids.aliceCar, dealershipId: t<=3?ids.north:ids.south,
         serviceTypeId, technicianId: tech(t), serviceBayId: bay(b), startTime,
-        endTime: new Date(startTime.getTime()+durationMinutes*60000), durationMinutes,
-      }, update: {} });
+        endTime, durationMinutes,
+      } });
     }
-    const schedule = new TechnicianSchedule();
     const leaves = [
       { id: '80000000-0000-4000-8000-000000000001', technicianId: tech(1), startsAt: new Date('2030-01-17T00:00:00Z'), endsAt: new Date('2030-01-18T00:00:00Z'), reason: 'Demo full-day leave' },
       { id: '80000000-0000-4000-8000-000000000002', technicianId: tech(2), startsAt: new Date('2030-01-17T09:00:00Z'), endsAt: new Date('2030-01-17T12:00:00Z'), reason: 'Demo morning training' },
