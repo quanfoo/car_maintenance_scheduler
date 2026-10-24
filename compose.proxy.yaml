@@ -1,10 +1,6 @@
 # Optional trusted build CA for corporate/managed TLS proxies.
 # BUILD_CA_FILE=/path/to/trusted-ca.crt docker compose -f compose.yaml -f compose.proxy.yaml build
 services:
-  api:
-    build:
-      secrets:
-        - npm_ca
   migrate:
     build:
       secrets:
