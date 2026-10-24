@@ -22,7 +22,8 @@
     "predev": "prisma generate",
     "pretest": "prisma generate",
     "predb:migrate": "prisma generate",
-    "predb:seed": "prisma generate"
+    "predb:seed": "prisma generate",
+    "setup:local": "sh scripts/setup-local.sh"
   },
   "dependencies": {
     "@fastify/swagger": "^9.9.2",

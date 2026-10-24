@@ -1,0 +1,20 @@
+{
+  "name": "AutoCare Scheduler development",
+  "dockerComposeFile": "compose.yaml",
+  "service": "workspace",
+  "workspaceFolder": "/app",
+  "remoteUser": "node",
+  "updateRemoteUserUID": false,
+  "shutdownAction": "stopCompose",
+  "postCreateCommand": "npm run setup:local && npm run db:migrate && npm run db:seed",
+  "forwardPorts": [3000],
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "typescript.enablePromptUseWorkspaceTsdk": true
+      },
+      "extensions": ["dbaeumer.vscode-eslint", "Prisma.prisma"]
+    }
+  }
+}

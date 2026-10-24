@@ -27,10 +27,35 @@ docker compose down             # preserves the database
 
 The database credentials in Compose and `.env.example` are intentionally public local demo credentials. Do not reuse them in production. Schema evolution uses Prisma Migrate with custom SQL for PostgreSQL constraints. Existing known-schema databases are baselined only after legacy checksum/constraint verification; appointments and idempotency data are preserved. Never edit an applied migration: add a new one. See `prisma/README.md` for adoption details. Schema changes and application deployment need coordinated compatibility planning in production. Seed uses transactional Prisma create/upsert operations with fixed demo identifiers and never truncates data. New time-off records use the shared technician lock/recheck protocol. If user bookings occupy a seed interval, the seed correctly fails instead of bypassing consistency constraints.
 
+## Local IDE: resolve imports and Prisma types
+
+The normal Docker image contains the runtime libraries **inside the container**. It does not install libraries into the checkout your Mac editor reads. For a regular local IDE, install Node.js 24 (or use `.nvmrc` with `nvm install && nvm use`), then run from the repository root:
+
+```sh
+npm run setup:local
+```
+
+This installs the lockfile's development dependencies natively on your machine and generates Prisma Client. No database connection is needed for this setup. NestJS, Swagger, TypeBox, TypeScript and Prisma types are then available to VS Code, Cursor, JetBrains or another local IDE. Keep `node_modules` untracked; do not copy Linux container dependencies onto macOS, because native tooling can differ by platform.
+
+VS Code-compatible editors are configured to find the workspace TypeScript SDK. If the editor still shows cached errors, choose **TypeScript: Select TypeScript Version → Use Workspace Version**, then **TypeScript: Restart TS Server**. The `.js` suffixes in relative TypeScript imports are intentional for NodeNext/ES modules.
+
+### Docker-only IDE option
+
+For VS Code (or a compatible editor with Dev Container support), Docker Desktop can provide the IDE's libraries without installing Node on your Mac:
+
+1. Install the editor's **Dev Containers** support. If the normal Compose app is running, stop it with `docker compose down` to free port 3000; this preserves its database volume.
+2. Open the repository and select **Dev Containers: Reopen in Container**.
+3. Wait for dependency setup, Prisma generation, migrations and seed to finish. The IDE runs inside the Dockerfile's `development` target with all dev dependencies available.
+4. In the container terminal, run `npm run dev`, then open the forwarded port 3000 for Swagger at `/docs`.
+
+The Dev Container uses a separate PostgreSQL volume and no database host port. Source files are bind-mounted; Linux `node_modules` stays in a separate container volume and does not replace your Mac's native dependencies. Recreating the container refreshes dependencies from the lockfile. The production target stays non-root and contains only its runtime dependencies.
+
+You can run lint, type checking, build and unit tests inside the Dev Container. Run the full Testcontainers integration suite from the native host workflow with Docker Desktop; the Dev Container intentionally has no host Docker socket mounted.
+
 ## Host development
 
 ```sh
-npm ci
+npm run setup:local
 docker compose up -d db
 export DATABASE_URL=postgres://scheduler:scheduler@127.0.0.1:5432/scheduler
 npm run db:migrate

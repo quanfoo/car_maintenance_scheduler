@@ -1,6 +1,16 @@
 FROM node:24-bookworm-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
+# Full toolchain for a container-attached IDE; kept separate from the runtime image.
+FROM base AS development
+WORKDIR /app
+COPY . .
+RUN --mount=type=secret,id=npm_ca --mount=type=cache,target=/root/.npm \
+    if [ -f /run/secrets/npm_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/npm_ca; fi; \
+    npm ci && npm run prisma:generate && chown -R node:node /app
+USER node
+CMD ["sleep", "infinity"]
+
 FROM base AS build
 WORKDIR /app
 COPY . .
