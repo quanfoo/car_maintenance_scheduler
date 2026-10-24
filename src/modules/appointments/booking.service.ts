@@ -1,3 +1,4 @@
+import { TechnicianSchedule } from '../../common/technician-schedule.js';
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -9,6 +10,7 @@ import { ApiError } from '../../errors.js';
 import { appointmentEnd, canonicalBooking, fingerprint, type BookingInput } from '../../booking/domain.js';
 import { AllocationQueries } from './allocation.queries.js';
 import { publicAppointment } from './appointment.mapper.js';
+class AllocationChanged extends Error {}
 export const MAX_ALLOCATION_ATTEMPTS = 5;
 @Injectable()
 export class BookingService {
@@ -17,6 +19,7 @@ export class BookingService {
     @Inject(ServiceTypesService) private services: ServiceTypesService,
     @Inject(AllocationQueries) private allocation: AllocationQueries,
     @Inject(Metrics) private metrics: Metrics,
+    @Inject(TechnicianSchedule) private schedule: TechnicianSchedule,
   ) {}
   private async replay(db: Prisma.TransactionClient, key: string | undefined, hash: string) {
     if (!key) return;
@@ -49,7 +52,8 @@ export class BookingService {
           const technicianId = await this.allocation.lockTechnician(tx, input.dealershipId, input.serviceTypeId, start, end);
           if (!technicianId) throw this.noCapacity();
           // Fresh statement AFTER locking: important for future cross-table scheduling.
-          if (await tx.appointment.count({ where: { technicianId, status: 'confirmed', startTime: { lt: end }, endTime: { gt: start } } })) throw this.noCapacity();
+          const conflicts = await this.schedule.conflicts(tx, technicianId, start, end);
+          if (conflicts.appointments || conflicts.timeOff) throw new AllocationChanged();
           const serviceBayId = await this.allocation.lockBay(tx, input.dealershipId, start, end);
           if (!serviceBayId) throw this.noCapacity();
           const appointment = await tx.appointment.create({ data: {
@@ -64,7 +68,7 @@ export class BookingService {
         const dbError = databaseError(error);
         // Interactive transaction has already rolled back before any recovery read.
         if (dbError.code === '23505') { const replay = await this.replay(this.prisma, key, hash); if (replay) return replay; }
-        if (isRetryable(error)) { this.metrics.retries.inc(); continue; }
+        if (error instanceof AllocationChanged || isRetryable(error)) { this.metrics.retries.inc(); continue; }
         if (dbError.code === '23503') throw new ApiError(409, 'REFERENCE_CHANGED', 'A referenced record changed; refresh and retry');
         throw error;
       }

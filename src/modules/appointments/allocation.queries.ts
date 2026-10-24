@@ -9,6 +9,8 @@ export class AllocationQueries {
       WHERE t.dealership_id=${dealershipId}::uuid AND sk.service_type_id=${serviceTypeId}::uuid
       AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.technician_id=t.id AND a.status='confirmed'
         AND a.start_time < ${end} AND a.end_time > ${start})
+      AND NOT EXISTS (SELECT 1 FROM technician_time_off leave WHERE leave.technician_id=t.id
+        AND leave.starts_at < ${end} AND leave.ends_at > ${start})
       ORDER BY t.id LIMIT 1 FOR UPDATE OF t SKIP LOCKED`;
     return rows[0]?.id;
   }

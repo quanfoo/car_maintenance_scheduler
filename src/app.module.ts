@@ -1,3 +1,4 @@
+import { TechniciansModule } from './modules/technicians/technicians.module.js';
 import { Module, type DynamicModule } from '@nestjs/common';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PrismaService } from './prisma/prisma.service.js';
@@ -9,6 +10,6 @@ import { OperationsModule } from './modules/operations/operations.module.js';
 @Module({})
 export class AppModule {
   static forClient(prisma: PrismaService): DynamicModule {
-    return { module: AppModule, imports: [PrismaModule.forClient(prisma), OperationsModule, DealershipsModule, ServiceTypesModule, AvailabilityModule, AppointmentsModule] };
+    return { module: AppModule, imports: [PrismaModule.forClient(prisma), OperationsModule, TechniciansModule, DealershipsModule, ServiceTypesModule, AvailabilityModule, AppointmentsModule] };
   }
 }

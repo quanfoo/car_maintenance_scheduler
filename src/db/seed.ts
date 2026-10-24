@@ -1,3 +1,5 @@
+import { TechnicianSchedule } from '../common/technician-schedule.js';
+import { ApiError } from '../errors.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 export const ids = {
   north: '10000000-0000-4000-8000-000000000001',
@@ -43,6 +45,18 @@ export async function seed(prisma: PrismaService) {
         serviceTypeId, technicianId: tech(t), serviceBayId: bay(b), startTime,
         endTime: new Date(startTime.getTime()+durationMinutes*60000), durationMinutes,
       }, update: {} });
+    }
+    const schedule = new TechnicianSchedule();
+    const leaves = [
+      { id: '80000000-0000-4000-8000-000000000001', technicianId: tech(1), startsAt: new Date('2030-01-17T00:00:00Z'), endsAt: new Date('2030-01-18T00:00:00Z'), reason: 'Demo full-day leave' },
+      { id: '80000000-0000-4000-8000-000000000002', technicianId: tech(2), startsAt: new Date('2030-01-17T09:00:00Z'), endsAt: new Date('2030-01-17T12:00:00Z'), reason: 'Demo morning training' },
+    ];
+    for (const leave of leaves) {
+      await schedule.lock(tx, leave.technicianId);
+      if (await tx.technicianTimeOff.findUnique({ where: { id: leave.id } })) continue;
+      const conflict = await schedule.conflicts(tx, leave.technicianId, leave.startsAt, leave.endsAt);
+      if (conflict.appointments || conflict.timeOff) throw new ApiError(409, 'SEED_CONFLICT', 'Demo time off conflicts with an existing schedule');
+      await tx.technicianTimeOff.create({ data: leave });
     }
   }, { timeout: 15000 });
 }

@@ -58,6 +58,7 @@ model Technician {
   dealership Dealership @relation(fields: [dealershipId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   skills TechnicianSkill[]
   appointments Appointment[]
+  timeOff TechnicianTimeOff[]
   @@unique([id, dealershipId])
   @@index([dealershipId, id], map: "technicians_dealership")
   @@map("technicians")
@@ -122,4 +123,16 @@ model LegacyMigration {
   sha256 String
   appliedAt DateTime @default(now()) @map("applied_at") @db.Timestamptz(6)
   @@map("schema_migrations")
+}
+
+// Half-open interval validity and per-technician GiST exclusion live in custom SQL.
+model TechnicianTimeOff {
+  id String @id @db.Uuid
+  technicianId String @map("technician_id") @db.Uuid
+  startsAt DateTime @map("starts_at") @db.Timestamptz(6)
+  endsAt DateTime @map("ends_at") @db.Timestamptz(6)
+  reason String?
+  technician Technician @relation(fields: [technicianId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@index([technicianId, startsAt, id], map: "technician_time_off_start")
+  @@map("technician_time_off")
 }

@@ -41,7 +41,7 @@ beforeAll(async () => {
   otherApp = await buildApp(otherPrisma, { logger: false });
 });
 beforeEach(async () => {
-  await pool.query('TRUNCATE appointments, booking_keys, technician_skills, technicians, service_bays, dealership_services, service_types, vehicles, customers, dealerships CASCADE');
+  await pool.query('TRUNCATE technician_time_off, appointments, booking_keys, technician_skills, technicians, service_bays, dealership_services, service_types, vehicles, customers, dealerships CASCADE');
   await seed(prisma);
 });
 afterAll(async () => {
@@ -106,7 +106,7 @@ describe('migration and operational checks', () => {
       await migrate(oldPool); await migrate(oldPool);
       expect((await oldPool.query('SELECT * FROM appointments ORDER BY id')).rows).toEqual(before);
       expect(await upgraded.appointment.findUnique({ where: { id: missing } })).toMatchObject({ idempotencyKey: 'legacy-key', requestFingerprint: 'legacy-fingerprint' });
-      expect((await oldPool.query('SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows[0].count).toBe('1');
+      expect((await oldPool.query('SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows[0].count).toBe('2');
     } finally { await upgraded.$disconnect(); await oldPool.end(); }
   });
 
