@@ -2,7 +2,7 @@
 
 ## Problem and scope
 
-Implement Keyloop Scenario A as a persistent REST backend. A customer requests a vehicle, dealership, service and start time; confirmation allocates one qualified technician and one bay for the entire duration and persists all associations. Swagger, cURL and an asserted HTTP demonstration substitute for the client layer.
+Implement AutoCare Scenario A as a persistent REST backend. A customer requests a vehicle, dealership, service and start time; confirmation allocates one qualified technician and one bay for the entire duration and persists all associations. Swagger, cURL and an asserted HTTP demonstration substitute for the client layer.
 
 The implementation now uses NestJS and Prisma and includes technician time off. The framework refactor was verified separately before extending scheduling behavior.
 

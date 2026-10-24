@@ -1,6 +1,6 @@
 # Unified Service Scheduler
 
-Keyloop Scenario A — a NestJS/TypeScript backend using the Fastify adapter and Prisma 7 that books a qualified technician and service bay for an entire service interval. PostgreSQL persists appointments and prevents double-booking across application instances. Swagger and a repeatable HTTP demonstration substitute for a frontend.
+AutoCare Scenario A — a NestJS/TypeScript backend using the Fastify adapter and Prisma 7 that books a qualified technician and service bay for an entire service interval. PostgreSQL persists appointments and prevents double-booking across application instances. Swagger and a repeatable HTTP demonstration substitute for a frontend.
 
 This is an **unauthenticated assessment demo**, intended for local review. It requires authentication, authorization and operational hardening before public deployment.
 

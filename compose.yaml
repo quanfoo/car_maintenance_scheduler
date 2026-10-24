@@ -15,7 +15,7 @@ services:
       timeout: 3s
       retries: 30
   migrate:
-    image: keyloop-scheduler:local
+    image: autocare-scheduler:local
     build: .
     command: ["node", "dist/db/cli.js", "migrate"]
     environment:
@@ -24,7 +24,7 @@ services:
       db:
         condition: service_healthy
   api:
-    image: keyloop-scheduler:local
+    image: autocare-scheduler:local
     pull_policy: never
     ports:
       - "127.0.0.1:3000:3000"
