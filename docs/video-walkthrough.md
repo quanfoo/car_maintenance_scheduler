@@ -11,3 +11,7 @@ This is an outline for a human-recorded submission, not a claim that a video exi
 7. **8:00–8:45 — Lessons and future work.** Explain the hardest issue: preserving database correctness while managing contention and retries. Discuss production gaps: identity/authorization, calendars/timezones, resource lifecycle, scoped/expiring keys, backup/failover and real load testing. Close with the acceptance criteria demonstrated.
 
 Before recording: rehearse on a seeded local database, choose a fresh cURL/Swagger key, and inspect the current verification record. Do not expose credentials, real customer data or private environment settings in the recording.
+
+## Update for the NestJS/Prisma + time-off version
+
+Use the current Nest module diagram and Prisma schema/custom SQL migrations for the architecture section. Explain that Prisma handles ordinary typed queries while PostgreSQL row locks and GiST exclusions remain necessary. At the concurrency step, show the shared technician lock and **post-lock** appointment/time-off recheck. In the live demo, include North's 2030-01-17 absence scenarios and run the extended `npm run demo` to demonstrate temporary administrative leave, rejected booking and restored availability after deletion. Keep the presentation within 10 minutes by shortening the original catalog tour. Use `refactor-verification.md` for current counts/results; `verification.md` records only the original version. Describe the actual autonomous-implementation authorization and pending human review accurately.

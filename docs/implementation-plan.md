@@ -1,4 +1,4 @@
-# Implementation plan and acceptance contract
+# Initial implementation plan and acceptance contract
 
 The assessment's Scenario A requires (1) a vehicle, service, dealership and desired-time booking request, (2) a qualified technician AND bay available for the complete duration, and (3) a persistent appointment associating customer, vehicle and both resources. The backend deliverable must expose REST and a persistent database; OpenAPI and a scripted demonstration substitute for a UI.
 
@@ -28,3 +28,8 @@ GET /dealerships; GET /dealerships/:dealershipId/service-types; GET /availabilit
 8. Complete OpenAPI, observability, demonstration, design and walkthrough documents; run all checks and Docker smoke tests.
 
 The user's direct instruction to iterate independently supersedes the attached prompt's review pauses. The user subsequently explicitly authorized committing and pushing the implementation to GitHub. Architecture choices remain recorded for final human review; no human design approval or test execution is assumed.
+
+
+## Subsequent authorized extension
+
+The human later requested NestJS/Prisma and technician time off, then explicitly authorized autonomous technical decisions and commits. The original assumptions above document the initial scope; technician time off is now an implemented extension. Phase 1 was verified independently before Phase 2 began. Current architecture and verification live in system-design.md and refactor-verification.md. New work is committed locally for deferred human review; no new push is implied by commit authorization.

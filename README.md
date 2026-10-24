@@ -1,6 +1,6 @@
 # Unified Service Scheduler
 
-Keyloop Scenario A — a Fastify/TypeScript backend that books a qualified technician and service bay for an entire service interval. PostgreSQL persists appointments and prevents double-booking across application instances. Swagger and a repeatable HTTP demonstration substitute for a frontend.
+Keyloop Scenario A — a NestJS/TypeScript backend using the Fastify adapter and Prisma 7 that books a qualified technician and service bay for an entire service interval. PostgreSQL persists appointments and prevents double-booking across application instances. Swagger and a repeatable HTTP demonstration substitute for a frontend.
 
 This is an **unauthenticated assessment demo**, intended for local review. It requires authentication, authorization and operational hardening before public deployment.
 
@@ -16,7 +16,7 @@ docker compose ps
 curl --fail http://localhost:3000/health/ready
 ```
 
-Open Swagger at `/docs` on port 3000; raw OpenAPI is `/openapi.json`. Database and HTTP ports bind only to loopback. The database uses a named volume; restarting preserves data. The image runs as the unprivileged `node` user.
+Open Swagger at `/docs` on port 3000; raw OpenAPI is `/openapi.json`. Database and HTTP ports bind only to loopback. The database uses a named volume; restarting preserves data. The API and migration job share one image, which runs as the unprivileged `node` user. The build keeps dependency-heavy layers few to support the managed cloud Docker vfs driver.
 
 ```sh
 docker compose logs api
@@ -25,7 +25,7 @@ docker compose down             # preserves the database
 # docker compose down -v
 ```
 
-The database credentials in Compose and `.env.example` are intentionally public local demo credentials. Do not reuse them in production. Migrations are explicit and checksummed; concurrent runners serialize through a database transaction lock. Never edit an applied migration: add a new one. Schema changes and application deployment need coordinated compatibility planning in production. Seed is transactional and additive: it adds fixed demo identifiers with `ON CONFLICT DO NOTHING`, never truncates data. If user bookings occupy a seed interval, the seed correctly fails instead of bypassing consistency constraints.
+The database credentials in Compose and `.env.example` are intentionally public local demo credentials. Do not reuse them in production. Schema evolution uses Prisma Migrate with custom SQL for PostgreSQL constraints. Existing known-schema databases are baselined only after legacy checksum/constraint verification; appointments and idempotency data are preserved. Never edit an applied migration: add a new one. See `prisma/README.md` for adoption details. Schema changes and application deployment need coordinated compatibility planning in production. Seed uses transactional Prisma create/upsert operations with fixed demo identifiers and never truncates data. New time-off records use the shared technician lock/recheck protocol. If user bookings occupy a seed interval, the seed correctly fails instead of bypassing consistency constraints.
 
 ## Host development
 
@@ -43,6 +43,7 @@ The app reads `DATABASE_URL`, `HOST` (default `127.0.0.1`), `PORT` (3000), and `
 In this managed cloud workspace the home directory is read-only. Use writable caches when needed:
 
 ```sh
+export XDG_CACHE_HOME=/workspace/.cache
 export npm_config_cache=/workspace/.cache/npm
 export BUILDX_CONFIG=/workspace/.cache/buildx
 ```
@@ -68,9 +69,11 @@ npm test          # requires a working Docker daemon
 npm run demo      # requires the seeded running API; uses real HTTP
 ```
 
-Tests launch their own PostgreSQL 17 container through Testcontainers, migrate it and isolate each test with fresh seed data. They never use or truncate your `DATABASE_URL`. Docker must be available, including permission to start the Testcontainers cleanup container. There is no in-memory substitute and no silent integration-test skip.
+Prisma Client is generated automatically before dev/test/migration/seed npm commands and during build/type checking. Tests launch their own PostgreSQL 17 container through Testcontainers, migrate it and isolate each test with fresh seed data. They never use or truncate your `DATABASE_URL`. Docker must be available, including permission to start the Testcontainers cleanup container. There is no in-memory substitute and no silent integration-test skip. The suite also verifies populated legacy database adoption and shared appointment/time-off locking across two Nest app instances.
 
-Tests exercise ownership and reference validation, cross-dealership and qualification constraints, full interval overlap, adjacent appointments, midnight rollover, alternatives, exhaustion, accurate availability, persistence, filtering, idempotency and concurrency. Two independent Fastify apps with separate connection pools contend on one database. Explicit SQL transaction tests wait until PostgreSQL reports a lock wait before committing the competing write; they verify exclusion errors and recovery from aborted transactions. A test-only database trigger injects exclusion failures to prove the five-attempt limit and rollback behavior. These are correctness tests, not load tests or evidence of production throughput.
+The current suite contains **72 tests**: 11 domain tests and 61 PostgreSQL/API tests.
+
+Tests exercise ownership and reference validation, cross-dealership and qualification constraints, full interval overlap, adjacent appointments, midnight rollover, alternatives, exhaustion, accurate availability, persistence, filtering, idempotency and concurrency. Two independent Fastify apps with separate connection pools contend on one database. Explicit SQL transaction tests wait until PostgreSQL reports a lock wait before committing the competing write; they verify exclusion errors and recovery from aborted transactions. A test-only database trigger injects exclusion failures to prove the five-attempt limit and rollback behavior. Time-off races use database insert gates and observed PostgreSQL lock waits to force booking-first, time-off-first and competing-leave orderings. Fault injection verifies failed writes roll back and retries stop at five transactions. These are correctness tests, not load tests or evidence of production throughput.
 
 ## Customer journey and API
 
@@ -84,6 +87,9 @@ All IDs are UUIDs. All responses use UTC ISO timestamps. The `date` parameter me
 | POST | `/appointments` | Allocate resources and confirm atomically |
 | GET | `/appointments/:id` | Retrieve appointment with assigned resource IDs |
 | GET | `/appointments` | List with optional dealershipId/customerId/date/status/limit/offset |
+| GET | `/technicians/:id/time-off` | Administrative list of technician absences |
+| POST | `/technicians/:id/time-off` | Administrative creation with conflict checks |
+| DELETE | `/technicians/:id/time-off/:timeOffId` | Administrative deletion; returns 204 |
 | GET | `/health/live`, `/health/ready` | Process and database/schema readiness |
 | GET | `/metrics` | Prometheus latency, outcome, retry, database error counters |
 
@@ -122,7 +128,7 @@ Errors have `{ "error": { "code": "NO_CAPACITY", "message": "…", "requestId": 
 
 ## Seed scenarios
 
-Demo date: **2030-01-15 UTC**, intentionally fixed; past bookings remain allowed for repeatability. Two dealerships, three services (30/60/90 minutes), five technicians with differing skills, three bays, two customers and ten appointments.
+Demo date: **2030-01-15 UTC**, intentionally fixed; past bookings remain allowed for repeatability. Two dealerships, three services (30/60/90 minutes), five technicians with differing skills, three bays, two customers, ten appointments, and two time-off intervals on 2030-01-17.
 
 North Motors ends in `…0001`; South Motors ends in `…0002`. Alice/customer `200…001` owns vehicle `300…001`; Bob/customer `200…002` owns `300…002`. Exact full identifiers appear above and in `src/db/seed.ts`.
 
@@ -136,17 +142,42 @@ North Motors ends in `…0001`; South Motors ends in `…0002`. Alice/customer `
 
 For North's 60-minute tyre service, 08:30 is unavailable because its interval overlaps the 09:00 bookings. South has one bay; a free technician alone cannot make a slot available.
 
+## Technician time off
+
+These are **administrative operations**. Authentication/authorization are outside this local demo; production must restrict these endpoints. The body uses timezone-qualified `startsAt` and `endsAt`, plus optional/null `reason` (up to 500 characters). Intervals are half-open. Invalid/reversed intervals return 400, unknown entities 404, appointment/leave conflicts 409; creation returns 201 and deletion 204. The list is chronological. Time-off creation does not support booking idempotency keys.
+
+```sh
+# List the full-day demo absence for Technician 1.
+curl --fail http://localhost:3000/technicians/50000000-0000-4000-8000-000000000001/time-off
+# Create a new absence for South's oil-qualified technician.
+curl -i http://localhost:3000/technicians/50000000-0000-4000-8000-000000000004/time-off \
+  -H 'Content-Type: application/json' \
+  -d '{"startsAt":"2030-01-18T09:00:00Z","endsAt":"2030-01-18T10:00:00Z","reason":"Training"}'
+# Delete using the returned id:
+# curl -i -X DELETE http://localhost:3000/technicians/50000000-0000-4000-8000-000000000004/time-off/<returned-id>
+```
+
+New seed scenarios on **2030-01-17 UTC**: North Technician 1 is absent for the full day; Technician 2 is absent 09:00–12:00. North oil service at 08:00 remains available through Technician 2, 09:00 is unavailable, and 12:00 becomes available again. The original 2030-01-15 scenarios are unchanged. Existing January 15 confirmed appointments do not conflict with the new absences.
+
+A technician must be qualified and free of both appointments and time off for the entire interval. Another qualified technician can preserve availability. Booking and time-off creation acquire the same technician row lock and recheck both tables after acquiring it; the separate GiST exclusions alone cannot prevent cross-table conflicts. All application/seed writers follow this protocol. Arbitrary direct SQL writers must also follow it; production should enforce access boundaries or add database triggers if additional writers are introduced.
+
+`npm run demo` verifies the original journey plus the seeded leave scenarios, creates a temporary absence, observes unavailable capacity and a rejected booking, deletes the absence and verifies restored availability. It cleans up the temporary absence so it can be repeated.
+
 ## AI Collaboration Narrative
 
-The human selected Scenario A, the backend scope and preferred stack, supplied the assessment and detailed acceptance/testing requirements, and explicitly asked the agent to iterate independently. The agent read both documents, recorded a plan and assumptions before coding, then implemented the service, SQL constraints, tests and documentation. The direct request superseded the attachment's review pauses; no human design approval, code review, or test execution is claimed.
+The human selected Scenario A and the backend scope, provided the assessment and detailed acceptance criteria, and initially authorized independent implementation. The agent recorded assumptions and implemented/tested the original Fastify/pg service. Its 48-test verification record is retained in `docs/verification.md` as historical evidence.
 
-Verification used actual PostgreSQL through Testcontainers and actual HTTP through Docker Compose. Static checking caught an unsupported per-query timeout configuration; it was replaced by bounded connection/query/statement timeouts in the database pool. The initial 45-test suite had an intermittent single-resource contention failure, despite passing in isolation. Allocation was refined to acquire resource row locks with `SKIP LOCKED`, plus transactional key claims for reliable idempotent replays. Exclusion constraints remain the final consistency safeguard. Regression tests verify the revised behavior, including two app instances and explicit overlapping SQL writes. The final verification record is in `docs/verification.md`.
+The human later requested NestJS, Prisma and technician time off, including a shared PostgreSQL locking protocol. The agent inspected the existing implementation and proposed a two-phase plan. The human explicitly authorized autonomous technical decisions and commits without intermediate approval; final human review remains pending. The agent verified the NestJS/Prisma refactor before starting time off: original tests, a populated database upgrade test, Docker startup, the HTTP demo and comparisons against six original API responses. The extension adds real PostgreSQL cross-table race, interval, deletion, integrity, rollback and bounded-retry tests.
 
-Generated code was validated and corrected through executable checks; it was not treated as automatically correct. The human still owns final review, approval, submission and any production decisions. After implementation and verification, the human explicitly requested publication to GitHub, authorizing focused milestone commits and the initial push. No human verification activities are invented. Before submitting, review the transaction strategy and security assumptions, run the documented demo and tests yourself, and record your own findings for the video.
+Corrections actually made include Prisma's void-returning advisory-lock decoding, OpenAPI translation of TypeBox schemas, OpenSSL inclusion in the container, and adapting a readiness fixture because Prisma qualifies schema names. Official engine downloads used verified artifacts through the supported execution path; TLS/checksum checks were never disabled. Details and final results are in `docs/refactor-verification.md`.
+
+AI-generated work was checked through static analysis, real PostgreSQL tests and real HTTP demonstrations. No human design/code review, personal test execution or production verification is claimed. The human owns final review, submission and the actual video; the agent's checks provide evidence for that review.
 
 ## Further documentation
 
 - [System design and trade-offs](docs/system-design.md)
 - [Implementation plan and assessment acceptance contract](docs/implementation-plan.md)
-- [Verification record](docs/verification.md)
+- [Current refactor/time-off verification](docs/refactor-verification.md)
+- [Original implementation verification](docs/verification.md)
+- [Prisma schema and migration lifecycle](prisma/README.md)
 - [5–10 minute video outline](docs/video-walkthrough.md)
