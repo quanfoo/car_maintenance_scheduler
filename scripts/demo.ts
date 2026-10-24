@@ -33,5 +33,30 @@ assert.deepEqual(retrieved.body, created.body);
 const list = await request(`/appointments?customerId=${ids.bob}&date=2030-01-16`);
 assert.equal(list.response.status, 200);
 assert.ok((list.body as { items: { id: string }[] }).items.some(item => item.id === id));
+const seededLeave = await request(`/availability?dealershipId=${ids.north}&serviceTypeId=${ids.oil}&date=2030-01-17`);
+assert.equal(seededLeave.response.status, 200);
+const leaveSlots = (seededLeave.body as { slots: { startTime: string; available: boolean }[] }).slots;
+assert.equal(leaveSlots.find(s => s.startTime === '2030-01-17T08:00:00.000Z')?.available, true);
+assert.equal(leaveSlots.find(s => s.startTime === '2030-01-17T09:00:00.000Z')?.available, false);
+assert.equal(leaveSlots.find(s => s.startTime === '2030-01-17T12:00:00.000Z')?.available, true);
+const adminPath = '/technicians/50000000-0000-4000-8000-000000000004/time-off';
+const temporary = await request(adminPath, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ startsAt: '2030-01-19T09:00:00Z', endsAt: '2030-01-19T10:00:00Z', reason: 'Temporary HTTP demo absence' }) });
+assert.equal(temporary.response.status, 201, JSON.stringify(temporary.body));
+const timeOffId = (temporary.body as { id: string }).id;
+try {
+  const blocked = await request(`/availability?dealershipId=${ids.south}&serviceTypeId=${ids.oil}&date=2030-01-19`);
+  assert.equal(blocked.response.status, 200);
+  assert.equal((blocked.body as { slots: { startTime: string; available: boolean }[] }).slots.find(s => s.startTime === '2030-01-19T09:00:00.000Z')?.available, false);
+  const rejected = await request('/appointments', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...payload, dealershipId: ids.south, startTime: '2030-01-19T09:00:00Z' }) });
+  assert.equal(rejected.response.status, 409);
+  assert.equal((rejected.body as { error: { code: string } }).error.code, 'NO_CAPACITY');
+} finally {
+  const removed = await fetch(new URL(`${adminPath}/${timeOffId}`, base), { method: 'DELETE' });
+  assert.equal(removed.status, 204);
+}
+const restored = await request(`/availability?dealershipId=${ids.south}&serviceTypeId=${ids.oil}&date=2030-01-19`);
+assert.equal(restored.response.status, 200);
+assert.equal((restored.body as { slots: { startTime: string; available: boolean }[] }).slots.find(s => s.startTime === '2030-01-19T09:00:00.000Z')?.available, true);
+console.log('PASS: time-off seed, administrative creation/deletion, unavailable capacity, booking conflict and restored availability');
 console.log('PASS: catalog, seeded availability, booking, idempotent replay, changed-payload conflict, retrieval, filtered listing');
 console.log(`Demo appointment: ${id}. Re-running reuses the same idempotency key.`);
