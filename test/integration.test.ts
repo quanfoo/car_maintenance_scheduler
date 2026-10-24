@@ -5,12 +5,17 @@ import { randomUUID } from 'node:crypto';
 import { buildApp } from '../src/app.js';
 import { migrate } from '../src/db/migrate.js';
 import { seed, ids, tech, bay } from '../src/db/seed.js';
-import { BookingService, MAX_ALLOCATION_ATTEMPTS } from '../src/booking/service.js';
+import { BookingService, MAX_ALLOCATION_ATTEMPTS } from '../src/modules/appointments/booking.service.js';
+import { PrismaService } from '../src/prisma/prisma.service.js';
+import { Metrics } from '../src/common/metrics.js';
+import { migrate as legacyMigrate } from '../src/db/legacy-migrate.js';
+import { seed as legacySeed } from '../src/db/legacy-seed.js';
 import type { BookingInput } from '../src/booking/domain.js';
 
 let container: StartedPostgreSqlContainer;
 let pool: pg.Pool;
-let otherPool: pg.Pool;
+let prisma: PrismaService;
+let otherPrisma: PrismaService;
 let app: Awaited<ReturnType<typeof buildApp>>;
 let otherApp: Awaited<ReturnType<typeof buildApp>>;
 const missing = '99999999-0000-4000-8000-000000000099';
@@ -28,20 +33,20 @@ beforeAll(async () => {
   // Always use a disposable container: never truncate a developer-supplied DATABASE_URL.
   container = await new PostgreSqlContainer('postgres:17-bookworm').start();
   pool = new pg.Pool({ connectionString: container.getConnectionUri(), max: 15 });
-  otherPool = new pg.Pool({ connectionString: container.getConnectionUri(), max: 10 });
+  prisma = new PrismaService({ connectionString: container.getConnectionUri() });
+  otherPrisma = new PrismaService({ connectionString: container.getConnectionUri() });
   await migrate(pool);
   await migrate(pool);
-  app = await buildApp(pool, { logger: false });
-  otherApp = await buildApp(otherPool, { logger: false });
-  await Promise.all([app.ready(), otherApp.ready()]);
+  app = await buildApp(prisma, { logger: false });
+  otherApp = await buildApp(otherPrisma, { logger: false });
 });
 beforeEach(async () => {
   await pool.query('TRUNCATE appointments, booking_keys, technician_skills, technicians, service_bays, dealership_services, service_types, vehicles, customers, dealerships CASCADE');
-  await seed(pool);
+  await seed(prisma);
 });
 afterAll(async () => {
   await Promise.all([app?.close(), otherApp?.close()]);
-  await Promise.all([pool?.end(), otherPool?.end()]);
+  await pool?.end();
   await container?.stop();
 });
 
@@ -55,7 +60,7 @@ describe('catalog and availability', () => {
   });
   it('is repeatably seeded without erasing user appointments', async () => {
     await post();
-    await seed(pool);
+    await seed(prisma);
     expect(await count()).toBe(11);
   });
   it('reports fully booked, adjacent, partial and long-interval slots without private details', async () => {
@@ -88,6 +93,23 @@ describe('catalog and availability', () => {
 });
 
 describe('migration and operational checks', () => {
+  it('adopts a populated legacy database without losing appointments or idempotency', async () => {
+    await pool.query('CREATE DATABASE scheduler_upgrade');
+    const url = new URL(container.getConnectionUri()); url.pathname='/scheduler_upgrade';
+    const oldPool = new pg.Pool({ connectionString: url.toString() });
+    const upgraded = new PrismaService({ connectionString: url.toString() });
+    try {
+      await legacyMigrate(oldPool); await legacySeed(oldPool);
+      await oldPool.query('INSERT INTO booking_keys VALUES ($1)', ['legacy-key']);
+      await directInsert(oldPool, { id: missing, idempotency_key: 'legacy-key', request_fingerprint: 'legacy-fingerprint' });
+      const before = (await oldPool.query('SELECT * FROM appointments ORDER BY id')).rows;
+      await migrate(oldPool); await migrate(oldPool);
+      expect((await oldPool.query('SELECT * FROM appointments ORDER BY id')).rows).toEqual(before);
+      expect(await upgraded.appointment.findUnique({ where: { id: missing } })).toMatchObject({ idempotencyKey: 'legacy-key', requestFingerprint: 'legacy-fingerprint' });
+      expect((await oldPool.query('SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL')).rows[0].count).toBe('1');
+    } finally { await upgraded.$disconnect(); await oldPool.end(); }
+  });
+
   it('rejects changed migration history and recovers after restoration', async () => {
     const old = (await pool.query('SELECT sha256 FROM schema_migrations WHERE name=$1', ['001_initial.sql'])).rows[0].sha256;
     try {
@@ -98,14 +120,16 @@ describe('migration and operational checks', () => {
     expect(await count()).toBe(10);
   });
   it('returns 503 readiness when connected but the application schema is absent', async () => {
-    const isolatedPool = new pg.Pool({ connectionString: container.getConnectionUri(), options: '-c search_path=pg_catalog' });
-    const isolatedApp = await buildApp(isolatedPool, { logger: false });
+    await pool.query('CREATE DATABASE scheduler_empty');
+    const emptyUrl = new URL(container.getConnectionUri()); emptyUrl.pathname='/scheduler_empty';
+    const isolatedPrisma = new PrismaService({ connectionString: emptyUrl.toString() });
+    const isolatedApp = await buildApp(isolatedPrisma, { logger: false });
     try {
       const response = await isolatedApp.inject('/health/ready');
       expect(response.statusCode).toBe(503);
       expect(response.json().error.code).toBe('DATABASE_UNAVAILABLE');
       expect((await isolatedApp.inject('/health/live')).statusCode).toBe(200);
-    } finally { await isolatedApp.close(); await isolatedPool.end(); }
+    } finally { await isolatedApp.close(); }
   });
 });
 
@@ -303,11 +327,12 @@ describe('idempotency and multi-instance concurrency', () => {
         RAISE EXCEPTION 'injected exclusion failure' USING ERRCODE='23P01';
       END IF; RETURN NEW; END $$;
       CREATE TRIGGER inject_conflict BEFORE INSERT ON appointments FOR EACH ROW EXECUTE FUNCTION fail_allocation()`);
-    let retries = 0;
+    const counter = app.get(Metrics).retries;
+    const before = (await counter.get()).values[0]?.value ?? 0;
     try {
-      const service = new BookingService(pool, () => { retries++; });
+      const service = app.get(BookingService);
       await expect(service.book(input, 'retry-limit')).rejects.toMatchObject({ code: 'ALLOCATION_CONTENTION', statusCode: 409 });
-      expect(retries).toBe(MAX_ALLOCATION_ATTEMPTS);
+      expect((await counter.get()).values[0]!.value - before).toBe(MAX_ALLOCATION_ATTEMPTS);
       expect(Number((await pool.query('SELECT last_value FROM test_attempts')).rows[0].last_value)).toBe(MAX_ALLOCATION_ATTEMPTS);
       expect(await count()).toBe(10);
       expect((await pool.query('SELECT count(*) FROM booking_keys')).rows[0].count).toBe('0');

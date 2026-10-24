@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+datasource db {
+  provider = "postgresql"
+}
+
+model Dealership {
+  id String @id @db.Uuid
+  name String
+  technicians Technician[]
+  bays ServiceBay[]
+  offerings DealershipService[]
+  appointments Appointment[]
+  @@map("dealerships")
+}
+model Customer {
+  id String @id @db.Uuid
+  name String
+  vehicles Vehicle[]
+  appointments Appointment[]
+  @@map("customers")
+}
+model Vehicle {
+  id String @id @db.Uuid
+  customerId String @map("customer_id") @db.Uuid
+  vin String @unique
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  appointments Appointment[]
+  @@unique([id, customerId])
+  @@map("vehicles")
+}
+model ServiceType {
+  id String @id @db.Uuid
+  name String
+  durationMinutes Int @map("duration_minutes")
+  offerings DealershipService[]
+  skills TechnicianSkill[]
+  appointments Appointment[]
+  @@unique([id, durationMinutes])
+  @@map("service_types")
+}
+model DealershipService {
+  dealershipId String @map("dealership_id") @db.Uuid
+  serviceTypeId String @map("service_type_id") @db.Uuid
+  dealership Dealership @relation(fields: [dealershipId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  appointments Appointment[]
+  @@id([dealershipId, serviceTypeId])
+  @@map("dealership_services")
+}
+model Technician {
+  id String @id @db.Uuid
+  dealershipId String @map("dealership_id") @db.Uuid
+  name String
+  dealership Dealership @relation(fields: [dealershipId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  skills TechnicianSkill[]
+  appointments Appointment[]
+  @@unique([id, dealershipId])
+  @@index([dealershipId, id], map: "technicians_dealership")
+  @@map("technicians")
+}
+model TechnicianSkill {
+  technicianId String @map("technician_id") @db.Uuid
+  serviceTypeId String @map("service_type_id") @db.Uuid
+  technician Technician @relation(fields: [technicianId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  appointments Appointment[]
+  @@id([technicianId, serviceTypeId])
+  @@map("technician_skills")
+}
+model ServiceBay {
+  id String @id @db.Uuid
+  dealershipId String @map("dealership_id") @db.Uuid
+  name String
+  dealership Dealership @relation(fields: [dealershipId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  appointments Appointment[]
+  @@unique([id, dealershipId])
+  @@index([dealershipId, id], map: "service_bays_dealership")
+  @@map("service_bays")
+}
+// GiST exclusions, fixed-duration/status/idempotency checks are maintained in SQL migrations.
+model Appointment {
+  id String @id @db.Uuid
+  customerId String @map("customer_id") @db.Uuid
+  vehicleId String @map("vehicle_id") @db.Uuid
+  dealershipId String @map("dealership_id") @db.Uuid
+  serviceTypeId String @map("service_type_id") @db.Uuid
+  technicianId String @map("technician_id") @db.Uuid
+  serviceBayId String @map("service_bay_id") @db.Uuid
+  startTime DateTime @map("start_time") @db.Timestamptz(6)
+  endTime DateTime @map("end_time") @db.Timestamptz(6)
+  durationMinutes Int @map("duration_minutes")
+  status String @default("confirmed")
+  idempotencyKey String? @unique(map: "appointments_idempotency_key_unique") @map("idempotency_key") @db.VarChar(128)
+  requestFingerprint String? @map("request_fingerprint")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  vehicle Vehicle @relation(fields: [vehicleId, customerId], references: [id, customerId], onDelete: NoAction, onUpdate: NoAction)
+  dealership Dealership @relation(fields: [dealershipId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  technician Technician @relation(fields: [technicianId, dealershipId], references: [id, dealershipId], onDelete: NoAction, onUpdate: NoAction)
+  bay ServiceBay @relation(fields: [serviceBayId, dealershipId], references: [id, dealershipId], onDelete: NoAction, onUpdate: NoAction)
+  skill TechnicianSkill @relation(fields: [technicianId, serviceTypeId], references: [technicianId, serviceTypeId], onDelete: NoAction, onUpdate: NoAction)
+  offering DealershipService @relation(fields: [dealershipId, serviceTypeId], references: [dealershipId, serviceTypeId], onDelete: NoAction, onUpdate: NoAction)
+  serviceType ServiceType @relation(fields: [serviceTypeId, durationMinutes], references: [id, durationMinutes], onDelete: NoAction, onUpdate: NoAction)
+  key BookingKey? @relation(fields: [idempotencyKey], references: [key], onDelete: NoAction, onUpdate: NoAction)
+  @@index([dealershipId, startTime, id], map: "appointments_dealership_start")
+  @@index([customerId, startTime, id], map: "appointments_customer_start")
+  @@index([startTime, id], map: "appointments_start")
+  @@map("appointments")
+}
+model BookingKey {
+  key String @id @db.VarChar(128)
+  appointment Appointment?
+  @@map("booking_keys")
+}
+// Retained as immutable legacy migration evidence; Prisma Migrate owns future evolution.
+model LegacyMigration {
+  name String @id
+  sha256 String
+  appliedAt DateTime @default(now()) @map("applied_at") @db.Timestamptz(6)
+  @@map("schema_migrations")
+}
