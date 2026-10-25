@@ -92,7 +92,17 @@ Failed bookings do not keep the key. Successful keys survive restarts. Without a
 
 Docker Compose runs migrations before starting the API and keeps database data in a volume. `/health/live` checks the process; `/health/ready` checks the database and schema. JSON logs include request IDs, and `/metrics` exposes Prometheus metrics.
 
-Use request IDs to follow failures in logs. Request latency, allocation retries and database-error metrics help identify slow requests or booking contention.
+Application logs are part of observability. The API writes JSON logs with the request method, path, response status, elapsed time and request ID. Unexpected server failures also log error codes when available. Match the response's `X-Request-Id` to the log's `reqId` to investigate a request.
+
+From the project folder, follow the API logs with:
+
+```sh
+docker compose logs --follow --tail=50 api
+```
+
+Send a request from Swagger to see its log entries; press Ctrl+C to stop following without stopping the app. When running `npm run dev`, logs appear in that terminal.
+
+Request latency, allocation retries and database-error metrics help identify broader patterns such as slow requests or booking contention. Distributed tracing is not implemented.
 
 ## Scaling and performance
 
