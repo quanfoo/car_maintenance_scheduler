@@ -98,7 +98,17 @@ Integration tests start and seed their own PostgreSQL containers. You do not nee
 
 PostgreSQL exclusion constraints prevent overlapping appointments for a technician or bay. Booking and time-off changes also lock the same technician row and recheck the schedule before saving. This prevents a booking from racing with a new absence. See the [system design](docs/system-design.md) for the short explanation.
 
-We used AI to help with implementation, documentation and automated checks. The [testing notes](docs/verification.md) summarize the checks completed for the current app.
+## AI Collaboration Narrative
+
+We set the backend scope, scheduling rules and NestJS/Prisma stack, then asked AI to implement and test the app. The main direction was to keep one application and make PostgreSQL responsible for booking consistency.
+
+Verification focused on failure cases as well as successful bookings: overlapping requests, missing resources, safe retries and bookings racing with time off. AI ran lint, type checks, the build, real PostgreSQL tests and the HTTP demo in the cloud workspace. The [testing notes](docs/verification.md) record the results.
+
+One refinement came from checking reseeding: restoring a deleted demo appointment could conflict with new time off. Seed writes now use the same technician lock and schedule checks as booking, with a regression test for that case.
+
+These automated results support review. Local testing, final acceptance and the video recording remain with the project owner.
+
+## More information
 
 - [Video walkthrough](docs/video-walkthrough.md)
 - [System design](docs/system-design.md)

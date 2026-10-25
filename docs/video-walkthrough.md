@@ -1,4 +1,4 @@
-# Video walkthrough: about 8 minutes
+# Video walkthrough: about 9 minutes
 
 ## Before recording
 
@@ -6,19 +6,25 @@ Start Docker, seed the app and open [Swagger](http://localhost:3000/docs). Run `
 
 Keep these tabs open: Swagger, [system design](system-design.md), [Prisma schema](../prisma/schema.prisma), [booking service](../src/modules/appointments/booking.service.ts) and a terminal. Use **UTC** when describing demo times.
 
-## 0:00–0:45 — What the app does
+This is a recording guide. The final submission also needs the recorded video and a link reviewers can access.
+
+## 0:00–0:30 — Introduction
+
+Introduce yourself by name. State that you chose **Scenario A: the Unified Service Scheduler**, implementing the backend with Swagger as the client interface.
 
 “We book a vehicle service at a dealership. Each booking needs a qualified technician and a free bay for the whole service. We also account for technician time off.”
 
-Show the README. Name the main tools: NestJS, Prisma and PostgreSQL. Explain that Swagger is the demo interface.
+Show the README.
 
-## 0:45–2:00 — Design and data
+## 0:30–1:45 — Design and data
 
 Show the diagram in [system design](system-design.md), then the Prisma schema. Follow the relationships from customer and vehicle to appointment, technician and bay.
 
 “NestJS organizes the API and scheduling logic. Prisma gives us typed database queries. PostgreSQL stores bookings and enforces the resource rules.”
 
-## 2:00–3:15 — Why concurrent bookings are safe
+Explain why one application and one database are enough here. Mention that app instances can share the database, with connection limits and indexes supporting growth. Logs, request IDs and metrics help diagnose failures.
+
+## 1:45–2:45 — Why concurrent bookings are safe
 
 Show the exclusion constraint in [system design](system-design.md) and the transaction in the booking service.
 
@@ -26,7 +32,7 @@ Show the exclusion constraint in [system design](system-design.md) and the trans
 
 Point to the [shared schedule checks](../src/common/technician-schedule.ts). Mention that failed transactions roll back and retryable failures have a five-attempt limit.
 
-## 3:15–5:15 — Book a service in Swagger
+## 2:45–4:45 — Book a service in Swagger
 
 Use the prefilled fields unless a step says otherwise:
 
@@ -38,23 +44,40 @@ Use the prefilled fields unless a step says otherwise:
 
 “The key makes retries safe. Checking availability does not reserve a slot; the booking transaction does.”
 
-## 5:15–6:15 — Show technician time off
+## 4:45–5:15 — Show technician time off
 
 1. Change the availability date to **2030-01-17**. North oil changes are available at 08:00, unavailable at 09:00 and available again at 12:00.
 2. Execute **GET `/technicians/{id}/time-off`** with its default technician. Show the 09:00–12:00 absence.
-3. Run `npm run demo` in the terminal. It creates a temporary absence, checks that booking is blocked, deletes the absence and checks that capacity returns.
 
 “A free bay is not enough when no qualified technician is available.”
 
-## 6:15–7:15 — Tests and AI assistance
+Keep this extension brief so the main booking journey stays central.
+
+## 5:15–5:45 — Tests
 
 Show the completed `npm run check` output and one test from [time-off.test.ts](../test/time-off.test.ts).
 
-“We use real PostgreSQL tests for concurrent bookings, time-off conflicts, rollback and safe retries. AI helped implement the app and tests; the automated checks cover the main scheduling rules.”
+“We use real PostgreSQL tests for concurrent bookings, time-off conflicts, rollback and safe retries.”
 
-Add any observations from your own review. The [testing notes](verification.md) summarize the checks completed in the cloud workspace.
+The [testing notes](verification.md) summarize the cloud checks. `npm run demo` also checks the running API, including temporary leave creation, a rejected booking and restored capacity after deletion.
 
-## 7:15–8:00 — Limits and next steps
+## 5:45–7:15 — AI collaboration
+
+Use the README's [AI Collaboration Narrative](../README.md#ai-collaboration-narrative) as a guide. Spend about 30 seconds on each point:
+
+1. **Direction:** explain the backend scope, chosen stack and requirement that a technician and bay stay available for the full service. AI helped implement the design, code and tests.
+2. **Verification:** explain why real PostgreSQL concurrency tests matter. Describe the automated cloud checks, then add the review and local testing you personally completed.
+3. **Refinement:** explain the reseeding issue: restoring a deleted appointment could conflict with newly added time off. The fix uses the same lock and schedule checks as normal booking, with a regression test.
+
+Keep the distinction between automated results and your own observations clear.
+
+## 7:15–8:15 — Challenge and lesson
+
+“Booking and time off live in separate tables. Each table can prevent its own overlaps, but that alone cannot stop a booking from conflicting with an absence. Both operations lock the same technician and recheck the schedule before saving.”
+
+Show the shared schedule checks and a race test. Explain the lesson: test competing operations together, and check that failed transactions leave no partial records. Add one observation from your own review or rehearsal.
+
+## 8:15–9:00 — Limits and next steps
 
 “This is a local demo. Next we would add authentication, dealership working hours, cancellation and rescheduling. We would also measure performance before deploying it publicly.”
 

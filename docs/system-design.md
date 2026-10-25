@@ -22,6 +22,19 @@ Controllers validate requests and return responses. Services handle scheduling r
 | `prisma/migrations/` | Tables, indexes and database constraints |
 | `test/` | Domain and real PostgreSQL tests |
 
+The client selects a dealership and service, checks availability, then submits the vehicle, customer and desired time. The booking service checks and reserves resources in one transaction, then returns the saved appointment and assigned resource IDs.
+
+## Technology choices
+
+| Tool | Why we use it |
+| --- | --- |
+| NestJS and TypeScript | Modules separate features; types make dependencies and data easier to follow. |
+| Prisma | Generates model types and handles ordinary reads and writes; focused SQL handles locking. |
+| PostgreSQL | Transactions, foreign keys and exclusion constraints protect bookings across app instances. |
+| Swagger | Gives reviewers a working API interface without building a frontend. |
+| Vitest and Testcontainers | Test business rules against real PostgreSQL, including competing transactions. |
+| Docker Compose | Runs the API and database together with repeatable setup. |
+
 ## Data and scheduling rules
 
 A customer owns vehicles. A dealership offers services and has technicians and bays. Technician skills determine which services they can perform. An appointment links all of these; time-off records belong to a technician.
@@ -78,6 +91,20 @@ Failed bookings do not keep the key. Successful keys survive restarts. Without a
 ## Operating the demo
 
 Docker Compose runs migrations before starting the API and keeps database data in a volume. `/health/live` checks the process; `/health/ready` checks the database and schema. JSON logs include request IDs, and `/metrics` exposes Prometheus metrics.
+
+Use request IDs to follow failures in logs. Request latency, allocation retries and database-error metrics help identify slow requests or booking contention.
+
+## Scaling and performance
+
+App instances can share PostgreSQL because scheduling locks live in the database. Each instance defaults to ten database connections; the total must fit the database's connection budget. Indexes support resource and date lookups, appointment lists are bounded, and availability calculates 48 start times from a consistent schedule snapshot.
+
+We would measure query times and contention before adding caching or more infrastructure. Any cached availability would remain a preview; booking must always recheck the database.
+
+## GenAI in the design
+
+AI helped turn the scheduling requirements into models, API routes and transaction steps. We directed the design toward a single application and database, keeping resource allocation together.
+
+The key design check was whether concurrent requests could save conflicting schedules. This led to database exclusion constraints for bookings and a shared technician lock for booking and time off. Separate constraints cannot enforce a rule across two tables, so both paths recheck the schedule after locking. Real PostgreSQL race tests verify that design.
 
 ## Current limits
 
