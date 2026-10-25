@@ -1,17 +1,28 @@
 # Testing
 
-## Run the checks
+## Run all tests
 
 Use Node.js 24 and a running Docker daemon:
 
 ```sh
 npm run setup:local
-npm run check
+npm test
 ```
 
-`check` runs lint, type checking, the build and tests. Integration tests use a separate PostgreSQL container; they do not clear or change your demo database.
+`npm test` runs both suites: **11 unit tests and 62 PostgreSQL/API integration tests**. Tests start their own database containers, apply migrations and seed the data. You do not need the Compose app running or a `DATABASE_URL`. Your demo database is left alone.
 
-For a quick domain check, run `npm run test:unit`. To check the running, seeded app over HTTP, run `npm run demo`. The demo reuses its booking key and removes the temporary absence it creates, so it can be repeated.
+Run these commands in your local terminal, with Docker Desktop running for integration tests. The first run may take longer while PostgreSQL is downloaded.
+
+| Command | What it runs | Needs Docker? |
+| --- | --- | --- |
+| `npm run test:unit` | Domain unit tests | No |
+| `npm run test:integration` | API, database, concurrency and time-off tests | Yes |
+| `npm test` | Both suites | Yes |
+| `npm run check` | Lint, type checking, build and both suites | Yes |
+
+If tests cannot find Docker, start Docker Desktop and check that `docker info` succeeds in the same terminal. Run integration tests from the host, not the Dev Container.
+
+To check the running, seeded app over HTTP, run `npm run demo`. This is separate from the test suite. It reuses its booking key and removes the temporary absence it creates, so it can be repeated.
 
 ## Coverage
 

@@ -76,13 +76,23 @@ For the managed cloud workspace, [scripts/cloud-setup.sh](scripts/cloud-setup.sh
 
 ## Check the app
 
+Use Node.js 24 and start Docker Desktop, then run from the project folder:
+
 ```sh
-npm run check      # lint, types, build and all tests; requires Docker
-npm run test:unit  # domain tests only
-npm run demo       # HTTP demo; requires the seeded app running on port 3000
+npm run setup:local
+npm test                  # all unit and PostgreSQL integration tests
 ```
 
-Integration tests start their own PostgreSQL database and leave your demo data alone. See [testing](docs/verification.md) for coverage.
+To run a specific suite or the wider checks:
+
+```sh
+npm run test:unit         # unit tests; no Docker needed
+npm run test:integration  # API, database and concurrency tests; requires Docker
+npm run check             # lint, types, build and all tests
+npm run demo              # HTTP demo; requires the seeded app running on port 3000
+```
+
+Integration tests start and seed their own PostgreSQL containers. You do not need to start the Compose app or set `DATABASE_URL`. They leave your demo data alone. See [testing](docs/verification.md) for coverage.
 
 ## How booking stays safe
 

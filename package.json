@@ -14,6 +14,8 @@
     "db:seed": "tsx src/db/cli.ts seed",
     "test": "vitest run",
     "test:unit": "vitest run test/domain.test.ts",
+    "test:integration": "vitest run test/integration.test.ts test/time-off.test.ts",
+    "pretest:integration": "prisma generate",
     "typecheck": "prisma generate && tsc --noEmit",
     "lint": "eslint .",
     "check": "npm run lint && npm run typecheck && npm run build && npm test",
