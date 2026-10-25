@@ -20,7 +20,7 @@ Controllers validate requests and return responses. Services handle scheduling r
 | `src/common/technician-schedule.ts` | Shared technician locking and conflict checks |
 | `prisma/schema.prisma` | Models and relationships |
 | `prisma/migrations/` | Tables, indexes and database constraints |
-| `test/` | Domain and real PostgreSQL tests |
+| `tests/unit/`, `tests/integration/` | Domain and real PostgreSQL tests |
 
 The client selects a dealership and service, checks availability, then submits the vehicle, customer and desired time. The booking service checks and reserves resources in one transaction, then returns the saved appointment and assigned resource IDs.
 

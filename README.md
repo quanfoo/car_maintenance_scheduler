@@ -94,7 +94,7 @@ npm run setup:local
 npm test                  # all unit and PostgreSQL integration tests
 ```
 
-To run a specific suite or the wider checks:
+Unit tests live in `tests/unit`; PostgreSQL/API tests live in `tests/integration`. To run a specific suite or the wider checks:
 
 ```sh
 npm run test:unit         # unit tests; no Docker needed

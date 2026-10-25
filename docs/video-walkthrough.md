@@ -55,7 +55,7 @@ Keep this extension brief so the main booking journey stays central.
 
 ## 5:15–5:45 — Tests
 
-Show the completed `npm run check` output and one test from [time-off.test.ts](../test/time-off.test.ts).
+Show the completed `npm run check` output and one test from [time-off.test.ts](../tests/integration/time-off.test.ts).
 
 “We use real PostgreSQL tests for concurrent bookings, time-off conflicts, rollback and safe retries.”
 

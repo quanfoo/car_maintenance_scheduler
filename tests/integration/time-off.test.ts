@@ -2,10 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import pg from 'pg';
 import { randomUUID } from 'node:crypto';
-import { buildApp } from '../src/app.js';
-import { PrismaService } from '../src/prisma/prisma.service.js';
-import { migrate } from '../src/db/migrate.js';
-import { seed, ids, tech, seededAppointment } from '../src/db/seed.js';
+import { buildApp } from '../../src/app.js';
+import { PrismaService } from '../../src/prisma/prisma.service.js';
+import { migrate } from '../../src/db/migrate.js';
+import { seed, ids, tech, seededAppointment } from '../../src/db/seed.js';
 
 let container: StartedPostgreSqlContainer;
 let pool: pg.Pool;

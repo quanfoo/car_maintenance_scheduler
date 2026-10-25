@@ -28,9 +28,9 @@ To check the running, seeded app over HTTP, run `npm run demo`. This is separate
 
 | Test file | What it checks |
 | --- | --- |
-| [domain.test.ts](../test/domain.test.ts) | Time overlap, service duration and booking normalization |
-| [integration.test.ts](../test/integration.test.ts) | API validation, ownership, availability, booking, idempotency, database constraints, concurrent requests, migrations and Swagger examples |
-| [time-off.test.ts](../test/time-off.test.ts) | Absences, restored capacity, booking/time-off races, seed conflicts, rollback and retry limits |
+| [domain.test.ts](../tests/unit/domain.test.ts) | Time overlap, service duration and booking normalization |
+| [integration.test.ts](../tests/integration/integration.test.ts) | API validation, ownership, availability, booking, idempotency, database constraints, concurrent requests, migrations and Swagger examples |
+| [time-off.test.ts](../tests/integration/time-off.test.ts) | Absences, restored capacity, booking/time-off races, seed conflicts, rollback and retry limits |
 
 Concurrency tests run two app instances against the same database and deliberately coordinate competing transactions. They check that no conflicting bookings or absences are saved.
 

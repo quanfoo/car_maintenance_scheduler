@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { appointmentEnd, canonicalBooking, fingerprint, utcDay } from '../src/booking/domain.js';
-import { ids } from '../src/db/seed.js';
+import { appointmentEnd, canonicalBooking, fingerprint, utcDay } from '../../src/booking/domain.js';
+import { ids } from '../../src/db/seed-data.js';
 const input = { customerId: ids.alice, vehicleId: ids.aliceCar, dealershipId: ids.north, serviceTypeId: ids.oil, startTime: '2030-01-15T09:00:00Z' };
 describe('booking domain', () => {
   it('calculates service durations including midnight rollover', () => {
