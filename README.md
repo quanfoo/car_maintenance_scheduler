@@ -24,6 +24,17 @@ docker compose down      # stop; keep database data
 
 Seeding restores missing demo records and keeps records you added. It does not reset the database. Compose credentials are for local use only.
 
+## Update locally
+
+From the project folder, pull the latest code and rebuild the app:
+
+```sh
+git pull origin main
+docker compose up -d --build --wait
+```
+
+Refresh Swagger after the app is ready. Your existing database data is preserved.
+
 ## Try the demo
 
 Swagger fields are prefilled with seed data. Expand an endpoint and click **Execute**.
