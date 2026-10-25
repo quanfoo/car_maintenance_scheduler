@@ -88,9 +88,9 @@ An optional `Idempotency-Key` identifies one booking request. The key and appoin
 
 Failed bookings do not keep the key. Successful keys survive restarts. Without a key, each request is a separate booking attempt.
 
-## Operating the demo
+## Observability
 
-Docker Compose runs migrations before starting the API and keeps database data in a volume. `/health/live` checks the process; `/health/ready` checks the database and schema. JSON logs include request IDs, and `/metrics` exposes Prometheus metrics.
+`/health/live` checks the process; `/health/ready` checks the database and schema. `/metrics` exposes Prometheus metrics and can be executed from Swagger.
 
 Application logs are part of observability. The API writes JSON logs with the request method, path, response status, elapsed time and request ID. Unexpected server failures also log error codes when available. Match the response's `X-Request-Id` to the log's `reqId` to investigate a request.
 
@@ -112,9 +112,7 @@ We would measure query times and contention before adding caching or more infras
 
 ## GenAI in the design
 
-AI helped turn the scheduling requirements into models, API routes and transaction steps. We directed the design toward a single application and database, keeping resource allocation together.
-
-The key design check was whether concurrent requests could save conflicting schedules. This led to database exclusion constraints for bookings and a shared technician lock for booking and time off. Separate constraints cannot enforce a rule across two tables, so both paths recheck the schedule after locking. Real PostgreSQL race tests verify that design.
+I used AI to brainstorm the architecture and key technical decisions before implementation. The design keeps resource allocation in one application and database, with PostgreSQL enforcing booking consistency. My full [AI collaboration story](../README.md#ai-collaboration-narrative) explains how I questioned, tested and refined the implementation.
 
 ## Current limits
 

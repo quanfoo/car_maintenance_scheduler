@@ -65,9 +65,9 @@ The [testing notes](verification.md) summarize the cloud checks. `npm run demo` 
 
 Use the README's [AI Collaboration Narrative](../README.md#ai-collaboration-narrative) as a guide. Spend about 30 seconds on each point:
 
-1. **Direction:** explain the backend scope, chosen stack and requirement that a technician and bay stay available for the full service. AI helped implement the design, code and tests.
-2. **Verification:** explain why real PostgreSQL concurrency tests matter. Describe the automated cloud checks, then add the review and local testing you personally completed.
-3. **Refinement:** explain the reseeding issue: restoring a deleted appointment could conflict with newly added time off. The fix uses the same lock and schedule checks as normal booking, with a regression test.
+1. **Understand and design:** explain how you read the requirements, chose Scenario A and brainstormed the architecture and key decisions with AI.
+2. **Implement and question:** describe asking for a draft, asking AI to explain parts of the code, requesting changes and iterating on the implementation.
+3. **Verify and refine:** explain how you requested unit and integration tests, then used a separate prompt to review the implementation against the requirements. Describe how those findings guided further changes.
 
 Keep the distinction between automated results and your own observations clear.
 

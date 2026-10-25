@@ -18,11 +18,12 @@ Open **[Swagger](http://localhost:3000/docs)**. The database setup runs before t
 The seed adds two dealerships, three services, five technicians, three bays, ten appointments and two absences. Demo dates are fixed in **January 2030, in UTC**.
 
 ```sh
-docker compose logs api  # view application logs
-docker compose down      # stop; keep database data
+docker compose down  # stop; keep database data
 ```
 
 Seeding restores missing demo records and keeps records you added. It does not reset the database. Compose credentials are for local use only.
+
+See [observability](docs/system-design.md#observability) for logs, metrics and health checks.
 
 ## Update locally
 
@@ -105,22 +106,18 @@ npm run demo              # HTTP demo; requires the seeded app running on port 3
 
 Integration tests start and seed their own PostgreSQL containers. You do not need to start the Compose app or set `DATABASE_URL`. They leave your demo data alone. See [testing](docs/verification.md) for coverage.
 
-## How booking stays safe
-
-PostgreSQL exclusion constraints prevent overlapping appointments for a technician or bay. Booking and time-off changes also lock the same technician row and recheck the schedule before saving. This prevents a booking from racing with a new absence. See the [system design](docs/system-design.md) for the short explanation.
-
 ## AI Collaboration Narrative
 
-We set the backend scope, scheduling rules and NestJS/Prisma stack, then asked AI to implement and test the app. The main direction was to keep one application and make PostgreSQL responsible for booking consistency.
+I started by reading the requirements to understand the overall problem. I chose Scenario A, then brainstormed the architecture and key technical decisions with AI.
 
-Verification focused on failure cases as well as successful bookings: overlapping requests, missing resources, safe retries and bookings racing with time off. AI ran lint, type checks, the build, real PostgreSQL tests and the HTTP demo in the cloud workspace. The [testing notes](docs/verification.md) record the results.
+Once the design was clear, I asked AI to build a first version. I asked it to explain parts of the implementation, requested changes and worked through several iterations.
 
-One refinement came from checking reseeding: restoring a deleted demo appointment could conflict with new time off. Seed writes now use the same technician lock and schedule checks as booking, with a regression test for that case.
+To verify the result, I asked AI to write unit and integration tests covering the business rules and technical decisions. I also used a separate prompt to review the implementation against the original requirements. I used those findings to guide further changes until the solution matched the intended scope.
 
-These automated results support review. Local testing, final acceptance and the video recording remain with the project owner.
+The [testing notes](docs/verification.md) record the automated checks and results.
 
 ## More information
 
 - [Video walkthrough](docs/video-walkthrough.md)
-- [System design](docs/system-design.md)
+- [System design: architecture, scheduling rules and trade-offs](docs/system-design.md)
 - [Prisma and migrations](prisma/README.md)
