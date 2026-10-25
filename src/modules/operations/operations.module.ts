@@ -1,6 +1,6 @@
 import { ApiJsonResponse, ApiErrors } from '../../common/openapi.js';
 import { Controller, Get, Global, Inject, Module, Res } from '@nestjs/common';
-import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Type } from '@sinclair/typebox';
 import type { FastifyReply } from 'fastify';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -22,7 +22,10 @@ class OperationsController {
     return { status: 'ready' };
   }
   @Get('metrics')
-  @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'View Prometheus metrics', description: 'Request latency, booking outcomes, allocation retries and database errors. Execute other API requests, then refresh to see updated values.' })
+  @ApiResponse({ status: 200, description: 'Prometheus text exposition format', content: {
+    'text/plain': { schema: { type: 'string' }, example: '# HELP scheduler_booking_total Booking outcomes (replays counted separately)\n# TYPE scheduler_booking_total counter\nscheduler_booking_total{outcome="confirmed"} 1\n' },
+  } })
   async metricsResponse(@Res({ passthrough: true }) reply: FastifyReply) {
     reply.type(this.metrics.registry.contentType);
     return this.metrics.registry.metrics();

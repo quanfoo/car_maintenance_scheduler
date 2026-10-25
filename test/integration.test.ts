@@ -246,6 +246,11 @@ describe('booking and retrieval', () => {
     const spec = (await app.inject('/openapi.json')).json();
     expect(spec.paths['/appointments'].post.requestBody).toBeDefined();
     expect(spec.paths['/availability'].get.responses['200']).toBeDefined();
+    const metricsResponse = spec.paths['/metrics'].get.responses['200'];
+    expect(spec.paths['/metrics'].get.tags).toContain('Operations');
+    expect(metricsResponse.content['text/plain'].schema.type).toBe('string');
+    expect(metricsResponse.content['text/plain'].example).toContain('scheduler_booking_total');
+    expect(metricsResponse.content['application/json']).toBeUndefined();
     expect((await app.inject('/docs/')).statusCode).toBe(200);
     expect((await app.inject('/health/ready')).statusCode).toBe(200);
     expect((await app.inject('/health/live')).statusCode).toBe(200);
@@ -254,6 +259,8 @@ describe('booking and retrieval', () => {
     await post();
     await post({ customerId: missing });
     const metrics = await app.inject('/metrics');
+    expect(metrics.statusCode).toBe(200);
+    expect(metrics.headers['content-type']).toContain('text/plain');
     expect(metrics.body).toContain('scheduler_booking_total{outcome="confirmed"}');
     expect(metrics.body).toContain('scheduler_http_request_duration_seconds');
     expect(metrics.body).not.toContain(ids.alice);
