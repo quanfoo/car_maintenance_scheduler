@@ -1,17 +1,68 @@
-# Suggested walkthrough (8–9 minutes)
+# Video walkthrough: about 8 minutes
 
-This is an outline for a human-recorded submission, not a claim that a video exists.
+## Before recording
 
-1. **0:00–0:45 — Introduction.** Introduce yourself and Scenario A. Explain the selected backend scope and that Swagger/scripted HTTP requests substitute for a frontend. State the three acceptance criteria: request a service, check both resources for the full duration, persist associations.
-2. **0:45–2:00 — Architecture.** Show the Mermaid architecture and model in `system-design.md`. Explain why a stateless modular monolith plus PostgreSQL is sufficient. Point out UTC/half-open intervals, fixed durations, skills and dealership membership. Identify assumptions versus assessment requirements.
-3. **2:00–3:30 — Consistency.** Show the two GiST exclusion constraints and composite foreign keys. Walk through resource row locks, transactional key claims and rollback/fresh-transaction retries. Explain that row locks reduce conflicts but the database constraints remain authoritative. Mention SKIP LOCKED's conservative conflicts and bounded retries.
-4. **3:30–5:30 — Live demonstration.** Start Compose and seed. In Swagger, list dealerships/services and show North oil availability on 2030-01-15: 09:00 unavailable, 09:30 available, 10:00 partially available. Create a booking at 09:30 with a unique key, retrieve it, repeat it, then change the payload under the same key to show 409. Run `npm run demo` for the repeatable asserted journey. Explain availability is advisory.
-5. **5:30–6:45 — Tests and verification.** Run `npm run check` with Docker available. Show the tests for adjacent/full-overlap intervals, unauthorized associations, two-instance allocation, single-resource contention, idempotency races and deterministic lock waits. Distinguish a correctness test from a load benchmark. Show readiness and `/metrics`.
-6. **6:45–8:00 — AI collaboration (1–2 minutes).** Describe your actual scenario/stack selection and prompt requirements. Describe the agent's plan, implementation and executed checks, the timeout API correction and the initial contention test failure/refinement. State which design and code portions you personally reviewed and tests you personally ran; do not claim activities you did not perform. Use `verification.md` as evidence and distinguish agent checks from your verification.
-7. **8:00–8:45 — Lessons and future work.** Explain the hardest issue: preserving database correctness while managing contention and retries. Discuss production gaps: identity/authorization, calendars/timezones, resource lifecycle, scoped/expiring keys, backup/failover and real load testing. Close with the acceptance criteria demonstrated.
+Start Docker, seed the app and open [Swagger](http://localhost:3000/docs). Run `npm run setup:local` and `npm run check` ahead of time so the editor and test output are ready.
 
-Before recording: rehearse on a seeded local database, choose a fresh cURL/Swagger key, and inspect the current verification record. Do not expose credentials, real customer data or private environment settings in the recording.
+Keep these tabs open: Swagger, [system design](system-design.md), [Prisma schema](../prisma/schema.prisma), [booking service](../src/modules/appointments/booking.service.ts) and a terminal. Use **UTC** when describing demo times.
 
-## Update for the NestJS/Prisma + time-off version
+## 0:00–0:45 — What the app does
 
-Use the current Nest module diagram and Prisma schema/custom SQL migrations for the architecture section. Explain that Prisma handles ordinary typed queries while PostgreSQL row locks and GiST exclusions remain necessary. At the concurrency step, show the shared technician lock and **post-lock** appointment/time-off recheck. In the live demo, include North's 2030-01-17 absence scenarios and run the extended `npm run demo` to demonstrate temporary administrative leave, rejected booking and restored availability after deletion. Keep the presentation within 10 minutes by shortening the original catalog tour. Use `refactor-verification.md` for current counts/results; `verification.md` records only the original version. Describe the actual autonomous-implementation authorization and pending human review accurately.
+“We book a vehicle service at a dealership. Each booking needs a qualified technician and a free bay for the whole service. We also account for technician time off.”
+
+Show the README. Name the main tools: NestJS, Prisma and PostgreSQL. Explain that Swagger is the demo interface.
+
+## 0:45–2:00 — Design and data
+
+Show the diagram in [system design](system-design.md), then the Prisma schema. Follow the relationships from customer and vehicle to appointment, technician and bay.
+
+“NestJS organizes the API and scheduling logic. Prisma gives us typed database queries. PostgreSQL stores bookings and enforces the resource rules.”
+
+## 2:00–3:15 — Why concurrent bookings are safe
+
+Show the exclusion constraint in [system design](system-design.md) and the transaction in the booking service.
+
+“The database rejects overlapping appointments for the same technician or bay. An appointment can end exactly when the next one starts. Booking and time off also lock the same technician and recheck both schedules, because those records live in different tables.”
+
+Point to the [shared schedule checks](../src/common/technician-schedule.ts). Mention that failed transactions roll back and retryable failures have a five-attempt limit.
+
+## 3:15–5:15 — Book a service in Swagger
+
+Use the prefilled fields unless a step says otherwise:
+
+1. Execute **GET `/dealerships`**, then the dealership's **GET service types**.
+2. Execute **GET `/availability`** for North Motors, oil change, **2030-01-15**. Show 09:00 unavailable and 09:30 available.
+3. Execute **POST `/appointments`** with the default body: Alice's vehicle, North Motors, **2030-01-16 at 10:00 UTC**. First use returns **201** with assigned technician and bay IDs. If rehearsed already, **200** returns the saved appointment.
+4. Execute the same request again. Show **200** and the same appointment ID.
+5. Change `startTime` to `2030-01-16T10:30:00Z`, keeping the same key. Show **409**, then restore the original body.
+
+“The key makes retries safe. Checking availability does not reserve a slot; the booking transaction does.”
+
+## 5:15–6:15 — Show technician time off
+
+1. Change the availability date to **2030-01-17**. North oil changes are available at 08:00, unavailable at 09:00 and available again at 12:00.
+2. Execute **GET `/technicians/{id}/time-off`** with its default technician. Show the 09:00–12:00 absence.
+3. Run `npm run demo` in the terminal. It creates a temporary absence, checks that booking is blocked, deletes the absence and checks that capacity returns.
+
+“A free bay is not enough when no qualified technician is available.”
+
+## 6:15–7:15 — Tests and AI assistance
+
+Show the completed `npm run check` output and one test from [time-off.test.ts](../test/time-off.test.ts).
+
+“We use real PostgreSQL tests for concurrent bookings, time-off conflicts, rollback and safe retries. AI helped implement the app and tests; the automated checks cover the main scheduling rules.”
+
+Add any observations from your own review. The [testing notes](verification.md) summarize the checks completed in the cloud workspace.
+
+## 7:15–8:00 — Limits and next steps
+
+“This is a local demo. Next we would add authentication, dealership working hours, cancellation and rescheduling. We would also measure performance before deploying it publicly.”
+
+Close by showing the saved appointment and its assigned resources.
+
+## Rehearsal notes
+
+- Keep the default booking key and body for repeat runs; they return the existing appointment.
+- If you delete the seeded absence in Swagger, rerun the README's seed command before showing January 17 availability.
+- The Swagger time-off POST is separate from the scripted demo. Repeating it returns **409** until that record is deleted using its returned ID.
+- Seeding keeps extra records you create. Avoid changing the demonstrated slots while rehearsing.
